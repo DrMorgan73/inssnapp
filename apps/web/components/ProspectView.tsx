@@ -16,6 +16,7 @@ type Showing = {
   unitId: string;
   state: string;
   outcome: string | null;
+  prospectUserId: string | null;
   version: number;
 };
 
