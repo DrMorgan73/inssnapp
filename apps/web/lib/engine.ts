@@ -11,7 +11,7 @@ export const engine = new ShowingEngine({
   getShowing: (id) => db.showings.get(id),
   insertEvent: (e) => db.showingEvents.insert(e),
   getIdempotent: (key) => db.showingEvents.findByIdempotencyKey(key),
-  commitShowing: (id, expectedVersion, patch) => {
+  commitShowing: async (id, expectedVersion, patch) => {
     if (process.env.DATABASE_URL) {
       // Postgres path: use the pool directly
       return import("pg").then(({ default: pg }) => {
