@@ -1,25 +1,16 @@
 /**
  * PostgreSQL client for TASK-002/003.
  *
- * Uses the built-in `pg` driver. The engine's ShowingStore interface is
+ * Uses `pg` as a peer dependency. The engine's ShowingStore interface is
  * implemented here with organization scoping, optimistic locking, and
  * idempotent audit events — matching the in-memory semantics exactly.
+ *
+ * `pg` is loaded lazily so the in-memory path works without it installed.
  */
 
 import { readFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
-import type { Showing, ShowingEvent, ShowingOutcome, Transition } from "@inssnapp/engine";
-import type { Role } from "@inssnapp/engine";
-
-// Lazy-load pg so the in-memory path works without the dependency installed.
-let pg: typeof import("pg") | null = null;
-
-async function getPg() {
-  if (!pg) {
-    pg = await import("pg");
-  }
-  return pg;
-}
+import type { Showing, ShowingEvent } from "@inssnapp/engine";
 
 const connectionString = process.env.DATABASE_URL;
 
@@ -27,8 +18,9 @@ export const usingPostgres = Boolean(connectionString);
 
 /** Runs all migrations in a transaction. Idempotent. */
 export async function migrate(): Promise<void> {
-  const { Client } = await getPg();
-  const client = new Client({ connectionString });
+  if (!connectionString) throw new Error("DATABASE_URL is not set");
+  const { default: pg } = await import("pg");
+  const client = new pg.Client({ connectionString });
   await client.connect();
   try {
     await client.query("BEGIN");
@@ -46,12 +38,12 @@ export async function migrate(): Promise<void> {
 
 /** Postgres-backed store implementing the engine's persistence contract. */
 export class PostgresStore {
-  private pool: import("pg").Pool | null = null;
+  private pool: unknown = null;
 
-  private async pool_() {
+  private async pool_(): Promise<any> {
     if (!this.pool) {
-      const { Pool } = await getPg();
-      this.pool = new Pool({ connectionString });
+      const { default: pg } = await import("pg");
+      this.pool = new pg.Pool({ connectionString });
     }
     return this.pool;
   }
