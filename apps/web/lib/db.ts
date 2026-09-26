@@ -176,7 +176,15 @@ export const db = {
     },
 
     async set(id: string, updated: Showing) {
-      // Handled by commitShowing in engine adapter
+      if (!usingPostgres) return mem.showings.set(id, updated);
+      const pool = await getPool();
+      await pool.query(
+        `UPDATE showings
+         SET state = $2, outcome = $3, prospect_user_id = $4,
+             broker_user_id = $5, version = $6, updated_at = now()
+         WHERE id = $1`,
+        [id, updated.state, updated.outcome, updated.prospectUserId, updated.brokerUserId, updated.version],
+      );
     },
   },
 

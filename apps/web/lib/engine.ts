@@ -35,9 +35,9 @@ export const engine = new ShowingEngine({
     }
     // In-memory path
     const s = await db.showings.get(id);
-    if (!s || s.version !== expectedVersion) return Promise.resolve(null);
+    if (!s || s.version !== expectedVersion) return null;
     const updated = { ...s, ...patch, version: s.version + 1, updatedAt: new Date().toISOString() };
-    db.showings.set(id, updated);
-    return Promise.resolve(updated);
+    await db.showings.set(id, updated);
+    return updated;
   },
 });
