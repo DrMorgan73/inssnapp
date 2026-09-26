@@ -4,31 +4,35 @@
  * When DATABASE_URL is set, all reads/writes go through PostgreSQL with
  * organization-scoped queries. Otherwise, the in-memory store is used for
  * local development and demos.
- *
- * TASK-002: PostgreSQL schema, organizations, authentication, RBAC, tenant isolation.
- * TASK-003: Persistent Showing Engine APIs, event model, locking, idempotency, audit.
  */
 
-import { PostgresStore, usingPostgres, migrate } from "@inssnapp/db";
 import type { Showing, ShowingEvent, ShowingState } from "@inssnapp/engine";
 import { store as mem } from "./store";
 
 // ---- Postgres pool (lazy) --------------------------------------------------
-let pgStore: PostgresStore | null = null;
-function postgres(): PostgresStore {
-  if (!pgStore) pgStore = new PostgresStore();
+let pgStore: any = null;
+async function postgres() {
+  if (!pgStore) {
+    const { PostgresStore } = await import("../../packages/db/src/index");
+    pgStore = new PostgresStore();
+  }
   return pgStore;
 }
 
-export { usingPostgres, migrate };
+export const usingPostgres = Boolean(process.env.DATABASE_URL);
+
+export async function migrate() {
+  const { migrate: m } = await import("../../packages/db/src/index");
+  return m();
+}
 
 // ---- Unified auth / user store ----------------------------------------------
 export const db = {
   users: {
     async byEmail(email: string) {
       if (!usingPostgres) return mem.users.byEmail(email);
-      const { Client } = await import("pg");
-      const client = new Client({ connectionString: process.env.DATABASE_URL });
+      const { default: pg } = await import("pg");
+      const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
       await client.connect();
       const res = await client.query(
         `SELECT id, organization_id AS "organizationId", email, full_name AS "fullName",
@@ -42,8 +46,8 @@ export const db = {
 
     async byId(id: string) {
       if (!usingPostgres) return mem.users.byId(id);
-      const { Client } = await import("pg");
-      const client = new Client({ connectionString: process.env.DATABASE_URL });
+      const { default: pg } = await import("pg");
+      const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
       await client.connect();
       const res = await client.query(
         `SELECT id, organization_id AS "organizationId", email, full_name AS "fullName", role
@@ -58,8 +62,8 @@ export const db = {
   properties: {
     async byOrg(organizationId: string) {
       if (!usingPostgres) return mem.properties.byOrg(organizationId);
-      const { Client } = await import("pg");
-      const client = new Client({ connectionString: process.env.DATABASE_URL });
+      const { default: pg } = await import("pg");
+      const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
       await client.connect();
       const res = await client.query(
         `SELECT id, organization_id AS "organizationId", name, address
@@ -74,8 +78,8 @@ export const db = {
   units: {
     async byOrg(organizationId: string) {
       if (!usingPostgres) return mem.units.byOrg(organizationId);
-      const { Client } = await import("pg");
-      const client = new Client({ connectionString: process.env.DATABASE_URL });
+      const { default: pg } = await import("pg");
+      const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
       await client.connect();
       const res = await client.query(
         `SELECT id, organization_id AS "organizationId", property_id AS "propertyId",
@@ -90,8 +94,8 @@ export const db = {
 
     async byId(id: string) {
       if (!usingPostgres) return mem.units.byId(id);
-      const { Client } = await import("pg");
-      const client = new Client({ connectionString: process.env.DATABASE_URL });
+      const { default: pg } = await import("pg");
+      const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
       await client.connect();
       const res = await client.query(
         `SELECT id, organization_id AS "organizationId", property_id AS "propertyId",
@@ -108,13 +112,13 @@ export const db = {
   showings: {
     async get(id: string) {
       if (!usingPostgres) return mem.showings.get(id);
-      return postgres().getShowing(id);
+      return (await postgres()).getShowing(id);
     },
 
     async create(unitId: string, residentUserId: string, organizationId: string, brokerRequired = false) {
       if (!usingPostgres) return mem.showings.create(unitId, residentUserId, organizationId, brokerRequired);
-      const { Client } = await import("pg");
-      const client = new Client({ connectionString: process.env.DATABASE_URL });
+      const { default: pg } = await import("pg");
+      const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
       await client.connect();
       const res = await client.query(
         `INSERT INTO showings (unit_id, resident_user_id, organization_id, broker_required)
@@ -131,8 +135,8 @@ export const db = {
 
     async list(organizationId: string) {
       if (!usingPostgres) return mem.showings.list(organizationId);
-      const { Client } = await import("pg");
-      const client = new Client({ connectionString: process.env.DATABASE_URL });
+      const { default: pg } = await import("pg");
+      const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
       await client.connect();
       const res = await client.query(
         `SELECT id, organization_id AS "organizationId", unit_id AS "unitId",
@@ -149,8 +153,8 @@ export const db = {
     async byUnitActive(unitId: string) {
       if (!usingPostgres) return mem.showings.byUnitActive(unitId);
       const active: ShowingState[] = ["REQUESTED", "RESIDENT_ACCEPTED", "BROKER_GATE", "CONFIRMED", "IN_PROGRESS", "COMPLETED"];
-      const { Client } = await import("pg");
-      const client = new Client({ connectionString: process.env.DATABASE_URL });
+      const { default: pg } = await import("pg");
+      const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
       await client.connect();
       const res = await client.query(
         `SELECT id, unit_id AS "unitId", state FROM showings
@@ -169,13 +173,13 @@ export const db = {
   showingEvents: {
     async insert(e: Omit<ShowingEvent, "id" | "at">) {
       if (!usingPostgres) return mem.showingEvents.insert(e);
-      return postgres().insertEvent(e);
+      return (await postgres()).insertEvent(e);
     },
 
     async list(organizationId: string) {
       if (!usingPostgres) return mem.showingEvents.list(organizationId);
-      const { Client } = await import("pg");
-      const client = new Client({ connectionString: process.env.DATABASE_URL });
+      const { default: pg } = await import("pg");
+      const client = new pg.Client({ connectionString: process.env.DATABASE_URL });
       await client.connect();
       const res = await client.query(
         `SELECT id, showing_id AS "showingId", organization_id AS "organizationId",
@@ -191,7 +195,7 @@ export const db = {
 
     async findByIdempotencyKey(key: string) {
       if (!usingPostgres) return mem.showingEvents.findByIdempotencyKey(key);
-      return postgres().getIdempotent(key);
+      return (await postgres()).getIdempotent(key);
     },
   },
 

@@ -13,16 +13,11 @@ export const engine = new ShowingEngine({
   getIdempotent: (key) => db.showingEvents.findByIdempotencyKey(key),
   commitShowing: (id, expectedVersion, patch) => {
     if (process.env.DATABASE_URL) {
-      // Postgres path handled by PostgresStore via db layer
-      return db.showings.get(id).then((current) => {
-        if (!current || current.version !== expectedVersion) return null;
-        return import("@inssnapp/db").then(({ PostgresStore }) => {
-          const store = new PostgresStore();
-          return store.commitShowing(id, expectedVersion, patch);
-        });
+      return import("../../packages/db/src/index").then(({ PostgresStore }) => {
+        const store = new PostgresStore();
+        return store.commitShowing(id, expectedVersion, patch);
       });
     }
-    // In-memory path
     const s = db.showings.get(id);
     if (!s || s.version !== expectedVersion) return Promise.resolve(null);
     const updated = { ...s, ...patch, version: s.version + 1, updatedAt: new Date().toISOString() };
